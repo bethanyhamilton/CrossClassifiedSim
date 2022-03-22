@@ -15,4 +15,4 @@
 module load Rstats/3.5.1
 
 # call R code from RMPISNOW
-ibrun RMPISNOW < ./run_sim_study.R
+ibrun RMPISNOW < ./run_sim.R

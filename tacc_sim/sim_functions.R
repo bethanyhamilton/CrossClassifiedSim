@@ -1,15 +1,3 @@
----
-title: "sim"
-author: "Bethany"
-
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
-rm(list=ls())
-
 library(brms)
 library(shinystan)
 library(rstan)
@@ -22,26 +10,10 @@ library(loo)
 library(bridgesampling)
 library(MASS)
 
-```
+#######################
+####### Models ########
+#######################
 
-
-# Questions: 
-
-
-# To Do:
-
-* figure out what to pull from models and calculate
-log likelihood 
-
-performance criteria. 
-
-
-# Models
-
-
-
-
-```{r}
 mmrem_model<- '
 data {
   int<lower=1> n;  // number of observations
@@ -154,7 +126,7 @@ log_lik[i] = normal_lpdf(y[i]| popint + popslope*x[i] + u2[group1[i],1] + u2[gro
 '
 
 rccrem_model_new <- 
-'data {
+  'data {
   int<lower=1> n; // number of observations
   int<lower=1> J; //the number of levels of each type of school
   real x[n];
@@ -236,15 +208,9 @@ generated quantities {
   }
 }
 '
-
-```
-
-
-
-# Data
-
-May need to change this depending on parameters specification. 
-```{r}
+################################
+####### Data Generation ########
+################################
 UDF_sample <- function(mobility, J, rho, tau) {
   require(MASS)
   
@@ -268,7 +234,7 @@ UDF_sample <- function(mobility, J, rho, tau) {
     sigma2.u2_init <- matrix(0, 4, 4)  # Overwrite the old matrix
     diag(sigma2.u2_init) <- c(10, 12, 14, 16)
     
-  
+    
   }else if(tau == "same" & rho== TRUE){
     
     rho <- rbind(c(10,6,5,4),c(6,10,6,5),c(5,6,10,6),c(4,5,6,10))*.1
@@ -286,8 +252,8 @@ UDF_sample <- function(mobility, J, rho, tau) {
   }
   
   
-
-
+  
+  
   #Step 1: Generate data through sampling
   u2_samp <- mvrnorm(J, mu.u2_init, Sigma=sigma2.u2_init)
   l2_samp <- matrix(nrow=J,ncol=length(mu.u2_init)+1); colnames(l2_samp) <- c("ID",paste("u",1:length(mu.u2_init),sep='')); l2_samp <- data.frame(l2_samp)
@@ -314,100 +280,91 @@ UDF_sample <- function(mobility, J, rho, tau) {
   return(data_samp)
 }
 
-# no time
-# tm <- system.time(mydata <- UDF_sample(mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same")))
 
+#tm <- system.time(mydata <- UDF_sample(mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same")))
 
-```
-
-# Make data list
-
-Questions: ccrem doesn't use w... so does it interfere when reading in list to stan? 
-
-```{r}
-
+################################
+####### Make data list #########
+################################
 
 getdata_ccrem_mmrem <- function(data){
- # pre_data
-k = 4
-id <- c(paste("group",1:k,sep=""))
-gm = 1
-predictor="X"
-
-# data 
-y <- data$y
-J <- length(levels(as.factor(data[,id[1]])))
-n <- dim(data)[1]
-
-if(gm == 1)
+  # pre_data
+  k = 4
+  id <- c(paste("group",1:k,sep=""))
+  gm = 1
+  predictor="X"
+  
+  # data 
+  y <- data$y
+  J <- length(levels(as.factor(data[,id[1]])))
+  n <- dim(data)[1]
+  
+  if(gm == 1)
   {
     x <- data[,predictor] - mean(data[,predictor])
   } else
   {
     x <- data[,predictor]
   }
-
-W <- diag(k)
-w <- matrix(rep(1/k,n*k),ncol=k, nrow=n)
   
-for(i in 1:k) {assign(paste("group",i,sep=''),data[,id[i]])}
+  W <- diag(k)
+  w <- matrix(rep(1/k,n*k),ncol=k, nrow=n)
   
-for (i in 1:n) {
+  for(i in 1:k) {assign(paste("group",i,sep=''),data[,id[i]])}
   
-  if (group1[i]==group2[i]){
-    w[i,1]=w[i,1]+0.25
-    w[i,2]=0
-  } 
-  
-  if (group1[i]==group3[i]){
-    w[i,1]=w[i,1]+0.25
-    w[i,3]=0
-  } 
-  else 
-    if (group2[i]==group3[i]){
-      w[i,2]=w[i,2]+0.25
-      w[i,3]=0
-    } 
-  
-  
-  if (group1[i]==group4[i]){
-    w[i,1]=w[i,1]+0.25
-    w[i,4]=0
-  } 
-  else {
-    if (group2[i]==group4[i]){
-      w[i,2]=w[i,2]+0.25
-      w[i,4]=0
+  for (i in 1:n) {
+    
+    if (group1[i]==group2[i]){
+      w[i,1]=w[i,1]+0.25
+      w[i,2]=0
     } 
     
+    if (group1[i]==group3[i]){
+      w[i,1]=w[i,1]+0.25
+      w[i,3]=0
+    } 
     else 
-      if (group3[i]==group4[i]){
-        w[i,3]=w[i,3]+0.25
+      if (group2[i]==group3[i]){
+        w[i,2]=w[i,2]+0.25
+        w[i,3]=0
+      } 
+    
+    
+    if (group1[i]==group4[i]){
+      w[i,1]=w[i,1]+0.25
+      w[i,4]=0
+    } 
+    else {
+      if (group2[i]==group4[i]){
+        w[i,2]=w[i,2]+0.25
         w[i,4]=0
-      }
+      } 
+      
+      else 
+        if (group3[i]==group4[i]){
+          w[i,3]=w[i,3]+0.25
+          w[i,4]=0
+        }
+    }
+    
   }
   
-}
-
-group1 <- data$group1
-group2 <- data$group2
-group3 <- data$group3
-group4 <- data$group4
-
-ccrem_mmrem_data <- list(y = y, J = J, n = n, w = w, x = x, 
-               group1 = group1, group2 = group2, 
-               group3 = group3, group4 = group4)
+  group1 <- data$group1
+  group2 <- data$group2
+  group3 <- data$group3
+  group4 <- data$group4
   
-return(ccrem_mmrem_data)
-
+  ccrem_mmrem_data <- list(y = y, J = J, n = n, w = w, x = x, 
+                           group1 = group1, group2 = group2, 
+                           group3 = group3, group4 = group4)
+  
+  return(ccrem_mmrem_data)
+  
 }
 
-
-
-system.time(listdata <- getdata_ccrem_mmrem(mydata))
-
+#system.time(listdata <- getdata_ccrem_mmrem(mydata))
 getdata_rccrem <- function(data){
- #Check on this
+  #Check on this
   k = 4
   id <- c(paste("group",1:k,sep=""))
   gm = 1
@@ -420,7 +377,7 @@ getdata_rccrem <- function(data){
   J <- length(levels(as.factor(data[,id[1]])))
   n <- dim(data)[1]
   
-if(gm == 1)
+  if(gm == 1)
   {
     x <- data[,predictor] - mean(data[,predictor])
   } else
@@ -428,37 +385,28 @@ if(gm == 1)
     x <- data[,predictor]
   }
   
-W <- diag (k)
-
+  W <- diag (k)
   
-for(i in 1:k) {assign(paste("group",i,sep=''),data[,id[i]])}
   
-group1 <- data$group1
-group2 <- data$group2
-group3 <- data$group3
-group4 <- data$group4
-
-zeros = rep(0, 4)
-
-rccrem_data <- list(y=y, J=J, n=n, group1=group1, group2=group2, group3=group3, group4=group4, x= x, W=W, zeros = zeros) 
+  for(i in 1:k) {assign(paste("group",i,sep=''),data[,id[i]])}
   
-return(rccrem_data)
-
+  group1 <- data$group1
+  group2 <- data$group2
+  group3 <- data$group3
+  group4 <- data$group4
+  
+  zeros = rep(0, 4)
+  
+  rccrem_data <- list(y=y, J=J, n=n, group1=group1, group2=group2, group3=group3, group4=group4, x= x, W=W, zeros = zeros) 
+  
+  return(rccrem_data)
+  
 }
-```
+#system.time(listdata <- getdata_rccrem(mydata))
 
-sets iterations, cores, thin_val the same... may want to add separate values for rccrem and mmrem/ccrem.
-
-
-Need to modify return dataframe. 
-
-Add in 50% 
-
-add in Na column to make it match
-
-loo and waic
-
-```{r}
+################################
+####### Run Models Funcs #######
+################################
 run_mmrem <-
   function(data,
            iterations = 100,
@@ -468,15 +416,6 @@ run_mmrem <-
            cores_val = 8,
            adapt_delta = 0.999,
            max_treedepth = 25) {
-    
-    
-
-  suppressPackageStartupMessages(require(rstan))
-    
-  suppressPackageStartupMessages(require(loo))
-    
-    
-
     
     
     ccrem_mmrem_data <- getdata_ccrem_mmrem(data)
@@ -489,40 +428,37 @@ run_mmrem <-
         warmup = warmup_val,
         thin = thin_val,
         chains = chains_val,
-        cores = cores_val, ### change this maybe
+        cores = cores_val,
         control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth)
       )
     
     
     # LOO 
     mm_loo <- loo(mm_stan_fit, k_threshold = 0.7, save_psis = TRUE)
-
     
-    LL_mm <- extract_log_lik(mm_stan_fit) # matrix
+    
+    LL_mm <- extract_log_lik(mm_stan_fit)
     mm_waic <- waic(LL_mm)
     
-      return(
-    data.frame(
-      model = "mmrem",
-                    int_mean = summary(mm_stan_fit)$summary["popint", "mean"],
-                    int_median = summary(mm_stan_fit)$summary["popint", "50%"],#median instead? 50%
-                    slope_mean = summary(mm_stan_fit)$summary["popslope", "mean"],
-                    slope_median = summary(mm_stan_fit)$summary["popslope", "50%"],
-                    sigma_y_mean = summary(mm_stan_fit)$summary["sigma_y", "mean"],
-                    sigma_y_median = summary(mm_stan_fit)$summary["sigma_y", "50%"],
-                    sigma_u2_mean = summary(mm_stan_fit)$summary["sigma_u2", "mean"],
-                    sigma_u2_median = summary(mm_stan_fit)$summary["sigma_u2", "50%"],
-                    loo_est = mm_loo$estimates["looic", "Estimate"],
-                    waic_est = mm_waic$estimates["waic", "Estimate"]
-            
-      )
-  )
+    return(
+      data.frame(
+        model = "mmrem",
+        int_mean = summary(mm_stan_fit)$summary["popint", "mean"],
+        int_median = summary(mm_stan_fit)$summary["popint", "50%"],#median instead? 50%
+        slope_mean = summary(mm_stan_fit)$summary["popslope", "mean"],
+        slope_median = summary(mm_stan_fit)$summary["popslope", "50%"],
+        sigma_y_mean = summary(mm_stan_fit)$summary["sigma_y", "mean"],
+        sigma_y_median = summary(mm_stan_fit)$summary["sigma_y", "50%"],
+        sigma_u2_mean = summary(mm_stan_fit)$summary["sigma_u2", "mean"],
+        sigma_u2_median = summary(mm_stan_fit)$summary["sigma_u2", "50%"],
+        loo_est = mm_loo$estimates["looic", "Estimate"],
+        waic_est = mm_waic$estimates["waic", "Estimate"])
+    )
     
     
   }
 
-
-system.time(test <- run_mmrem(data= mydata))
+#system.time(test <- run_mmrem(data= mydata))
 
 
 run_ccrem <-
@@ -535,9 +471,6 @@ run_ccrem <-
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
-      suppressPackageStartupMessages(require(rstan))
-    
-  suppressPackageStartupMessages(require(loo))
     
     ccrem_mmrem_data <- getdata_ccrem_mmrem(data)
     
@@ -554,7 +487,7 @@ run_ccrem <-
         control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth)
       )
     
-        # LOO 
+    # LOO 
     cc_loo <- loo(cc_stan_fit, k_threshold = 0.7, save_psis = TRUE)
     
     
@@ -563,29 +496,28 @@ run_ccrem <-
     
     
     return(data.frame(model = "mmrem",
-                    int_mean = summary(cc_stan_fit)$summary["popint", "mean"],
-                    int_median = summary(cc_stan_fit)$summary["popint", "50%"],
-                    slope_mean = summary(cc_stan_fit)$summary["popslope", "mean"],
-                    slope_median = summary(cc_stan_fit)$summary["popslope", "50%"],
-                    sigma_y_mean = summary(cc_stan_fit)$summary["sigma_y", "mean"],
-                    sigma_y_median = summary(cc_stan_fit)$summary["sigma_y", "50%"],
-                    sigma_u2_1_mean = summary(cc_stan_fit)$summary["sigma_u2[1]", "mean"],
-                    sigma_u2_1_median = summary(cc_stan_fit)$summary["sigma_u2[1]", "50%"],
-                    sigma_u2_2_mean =  summary(cc_stan_fit)$summary["sigma_u2[2]", "mean"],
-                    sigma_u2_2_median =  summary(cc_stan_fit)$summary["sigma_u2[2]", "50%"],
-                    sigma_u2_3_mean = summary(cc_stan_fit)$summary["sigma_u2[3]", "mean"],
-                    sigma_u2_3_median = summary(cc_stan_fit)$summary["sigma_u2[3]", "50%"],
-                    sigma_u2_4_mean =  summary(cc_stan_fit)$summary["sigma_u2[4]", "mean"],
-                    sigma_u2_4_median =  summary(cc_stan_fit)$summary["sigma_u2[4]", "50%"],
-                    loo_est = cc_loo$estimates["looic", "Estimate"],
-                    waic_est = cc_waic$estimates["waic", "Estimate"] )
-                      )
-                      
-                      
+                      int_mean = summary(cc_stan_fit)$summary["popint", "mean"],
+                      int_median = summary(cc_stan_fit)$summary["popint", "50%"],
+                      slope_mean = summary(cc_stan_fit)$summary["popslope", "mean"],
+                      slope_median = summary(cc_stan_fit)$summary["popslope", "50%"],
+                      sigma_y_mean = summary(cc_stan_fit)$summary["sigma_y", "mean"],
+                      sigma_y_median = summary(cc_stan_fit)$summary["sigma_y", "50%"],
+                      sigma_u2_1_mean = summary(cc_stan_fit)$summary["sigma_u2[1]", "mean"],
+                      sigma_u2_1_median = summary(cc_stan_fit)$summary["sigma_u2[1]", "50%"],
+                      sigma_u2_2_mean =  summary(cc_stan_fit)$summary["sigma_u2[2]", "mean"],
+                      sigma_u2_2_median =  summary(cc_stan_fit)$summary["sigma_u2[2]", "50%"],
+                      sigma_u2_3_mean = summary(cc_stan_fit)$summary["sigma_u2[3]", "mean"],
+                      sigma_u2_3_median = summary(cc_stan_fit)$summary["sigma_u2[3]", "50%"],
+                      sigma_u2_4_mean =  summary(cc_stan_fit)$summary["sigma_u2[4]", "mean"],
+                      sigma_u2_4_median =  summary(cc_stan_fit)$summary["sigma_u2[4]", "50%"],
+                      loo_est = cc_loo$estimates["looic", "Estimate"],
+                      waic_est = cc_waic$estimates["waic", "Estimate"] )
+    )
+    
+    
   }
 
-#test2 <- run_ccrem(data= mydata)
-
+#system.time(test2 <- run_ccrem(data= mydata))
 
 run_rccrem <-
   function(data,
@@ -598,12 +530,8 @@ run_rccrem <-
            max_treedepth = 25) {
     
     
-      suppressPackageStartupMessages(require(rstan))
-    
-  suppressPackageStartupMessages(require(loo))
-    
     rccrem_data <- getdata_rccrem(data)
-  
+    
     
     rcc_stan_fit <-
       stan(
@@ -618,7 +546,7 @@ run_rccrem <-
       )
     
     
-          # LOO 
+    # LOO 
     rcc_loo <- loo(rcc_stan_fit, k_threshold = 0.7, save_psis = TRUE)
     
     LL_rcc <- extract_log_lik(rcc_stan_fit)
@@ -626,220 +554,112 @@ run_rccrem <-
     
     
     return(data.frame(model = "mmrem",                    
-               int_mean = summary(rcc_stan_fit)$summary["popint", "mean"],
-               int_median = summary(rcc_stan_fit)$summary["popint", "50%"],
-               slope_mean = summary(rcc_stan_fit)$summary["popslope", "mean"],
-               slope_median =  summary(rcc_stan_fit)$summary["popslope", "50%"],
-               sigma_y_mean = summary(rcc_stan_fit)$summary["sigma_y", "mean"],
-               sigma_y_median = summary(rcc_stan_fit)$summary["sigma_y", "50%"],
-               sigma_u2_1_mean = summary(rcc_stan_fit)$summary["sigma_u2[1]", "mean"],
-               sigma_u2_1_median =  summary(rcc_stan_fit)$summary["sigma_u2[1]", "50%"],
-               sigma_u2_2_mean =  summary(rcc_stan_fit)$summary["sigma_u2[2]", "mean"],
-               sigma_u2_2_median = summary(rcc_stan_fit)$summary["sigma_u2[2]", "50%"],
-               sigma_u2_3_mean = summary(rcc_stan_fit)$summary["sigma_u2[3]", "mean"],
-               sigma_u2_3_median = summary(rcc_stan_fit)$summary["sigma_u2[3]", "50%"],
-               sigma_u2_4_mean =  summary(rcc_stan_fit)$summary["sigma_u2[4]", "mean"],
-               sigma_u2_4_median = summary(rcc_stan_fit)$summary["sigma_u2[4]", "50%"],
-               rho_12_mean = summary(rcc_stan_fit)$summary["rho_12", "mean"],
-               rho_12_median = summary(rcc_stan_fit)$summary["rho_12", "50%"],
-               rho_13_mean = summary(rcc_stan_fit)$summary["rho_13", "mean"],
-               rho_13_median = summary(rcc_stan_fit)$summary["rho_13", "50%"],
-               rho_14_mean = summary(rcc_stan_fit)$summary["rho_14", "mean"],
-               rho_14_median = summary(rcc_stan_fit)$summary["rho_14", "50%"],
-               rho_23_mean =  summary(rcc_stan_fit)$summary["rho_23", "mean"],
-               rho_23_median = summary(rcc_stan_fit)$summary["rho_23", "50%"],
-               rho_24_mean = summary(rcc_stan_fit)$summary["rho_24", "mean"],
-               rho_24_median = summary(rcc_stan_fit)$summary["rho_24", "50%"],
-               rho_34_mean =  summary(rcc_stan_fit)$summary["rho_34", "mean"],
-               rho_34_median = summary(rcc_stan_fit)$summary["rho_34", "50%"],
-               loo_est = rcc_loo$estimates["looic", "Estimate"],
-               waic_est = rcc_waic$estimates["waic", "Estimate"]
+                      int_mean = summary(rcc_stan_fit)$summary["popint", "mean"],
+                      int_median = summary(rcc_stan_fit)$summary["popint", "50%"],
+                      slope_mean = summary(rcc_stan_fit)$summary["popslope", "mean"],
+                      slope_median =  summary(rcc_stan_fit)$summary["popslope", "50%"],
+                      sigma_y_mean = summary(rcc_stan_fit)$summary["sigma_y", "mean"],
+                      sigma_y_median = summary(rcc_stan_fit)$summary["sigma_y", "50%"],
+                      sigma_u2_1_mean = summary(rcc_stan_fit)$summary["sigma_u2[1]", "mean"],
+                      sigma_u2_1_median =  summary(rcc_stan_fit)$summary["sigma_u2[1]", "50%"],
+                      sigma_u2_2_mean =  summary(rcc_stan_fit)$summary["sigma_u2[2]", "mean"],
+                      sigma_u2_2_median = summary(rcc_stan_fit)$summary["sigma_u2[2]", "50%"],
+                      sigma_u2_3_mean = summary(rcc_stan_fit)$summary["sigma_u2[3]", "mean"],
+                      sigma_u2_3_median = summary(rcc_stan_fit)$summary["sigma_u2[3]", "50%"],
+                      sigma_u2_4_mean =  summary(rcc_stan_fit)$summary["sigma_u2[4]", "mean"],
+                      sigma_u2_4_median = summary(rcc_stan_fit)$summary["sigma_u2[4]", "50%"],
+                      rho_12_mean = summary(rcc_stan_fit)$summary["rho_12", "mean"],
+                      rho_12_median = summary(rcc_stan_fit)$summary["rho_12", "50%"],
+                      rho_13_mean = summary(rcc_stan_fit)$summary["rho_13", "mean"],
+                      rho_13_median = summary(rcc_stan_fit)$summary["rho_13", "50%"],
+                      rho_14_mean = summary(rcc_stan_fit)$summary["rho_14", "mean"],
+                      rho_14_median = summary(rcc_stan_fit)$summary["rho_14", "50%"],
+                      rho_23_mean =  summary(rcc_stan_fit)$summary["rho_23", "mean"],
+                      rho_23_median = summary(rcc_stan_fit)$summary["rho_23", "50%"],
+                      rho_24_mean = summary(rcc_stan_fit)$summary["rho_24", "mean"],
+                      rho_24_median = summary(rcc_stan_fit)$summary["rho_24", "50%"],
+                      rho_34_mean =  summary(rcc_stan_fit)$summary["rho_34", "mean"],
+                      rho_34_median = summary(rcc_stan_fit)$summary["rho_34", "50%"],
+                      loo_est = rcc_loo$estimates["looic", "Estimate"],
+                      waic_est = rcc_waic$estimates["waic", "Estimate"]
                       
-                      ))
-                      
-                      
+    ))
+    
+    
   }
 
 
 
-#test3 <- run_rccrem(data= mydata)
-
-```
+#system.time(test3 <- run_rccrem(data= mydata))
 
 
+################################
+########### Run Sims ###########
+################################
 
-
-```{r}
 
 runmodels <- function(data, mmrem=TRUE, ccrem=TRUE, rccrem=TRUE){
-  suppressPackageStartupMessages(require(dplyr))
+  suppressPackageStartupMessages(require(dplyr, quietly = TRUE, warn.conflicts = FALSE))
+  
+  suppressPackageStartupMessages(require(rstan, quietly = TRUE, warn.conflicts = FALSE))
+  
+  suppressPackageStartupMessages(require(loo, quietly = TRUE, warn.conflicts = FALSE))
   
   res <- data.frame()
-
-
-    if (mmrem) {
-      res_mmrem <- run_mmrem(data)
-      
-      res <- bind_rows(list(res, res_mmrem))
-      
-    }
   
-      if (ccrem) {
-      res_ccrem <- run_ccrem(data)
-      
-      res <- bind_rows(list(res, res_ccrem))
-      
-      }
   
-      if (rccrem) {
-      res_rccrem <- run_rccrem(data)
-      
-      res <- bind_rows(list(res, res_rccrem))
-
-      
-    }
+  if (mmrem) {
+    res_mmrem <- run_mmrem(data)
     
+    res <- bind_rows(list(res, res_mmrem))
+    
+  }
+  
+  if (ccrem) {
+    res_ccrem <- run_ccrem(data)
+    
+    res <- bind_rows(list(res, res_ccrem))
+    
+  }
+  
+  if (rccrem) {
+    res_rccrem <- run_rccrem(data)
+    
+    res <- bind_rows(list(res, res_rccrem))
+    
+    
+  }
+  
   res
-
-
+  
+  
   
 }
 
 
-res <- runmodels(data= mydata)
-
-```
-
-
-
-```{r}
-
+#res <- runmodels(data= mydata)
 
 runSim <- function(reps, mobility, J, rho, tau, mmrem=TRUE, ccrem=TRUE, rccrem=TRUE, seed = NULL, ...){
   
-   suppressPackageStartupMessages(require(purrr))
-  suppressPackageStartupMessages(require(dplyr))
+  suppressPackageStartupMessages(require(purrr, quietly = TRUE, warn.conflicts = FALSE))
+  suppressPackageStartupMessages(require(dplyr, quietly = TRUE, warn.conflicts = FALSE))
   
   if (!is.null(seed)) set.seed(seed)
   
-    replicates <- rerun(reps, {
+  replicates <- rerun(reps, {
     UDF_sample(mobility = mobility, J = J, rho=rho, tau=tau) %>%
       runmodels(mmrem = mmrem,ccrem = ccrem, rccrem= rccrem)
   })
   
-    
-    #fix this... 
+  
+  #fix this... 
   replicates %>%
     bind_rows() %>%
     group_by(model) #%>% 
- summarise(K = n(),
-          variance = var(popint),
-          
-          
-        #  rel_bias_icc = (mean(popint) - int)/(int),
-        #  rel_bias_icc_mcse = sqrt(variance/(K*(int^2)))
-    
-    )
+  # summarise(
+  # 
+  # )
   
 }
-
-# 95% CI relative bias
-
-# 
-
-
-#CXX14 = "C:/Rtools/mingw_64/bin/g++.exe"
-
-
 #runSim(reps=2, mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same"))
-```
-
-
-Need to rework this...might need to redo UDF_sample. reads in whole variance/covariance matrix for condition.. maybe save as strings that are then made into matrices as solution??
-
-```{r, eval= F}
-library(dplyr)
-library(purrr)
-library(Pusto)
-
-
-set.seed(778321311)
-# Experimental factors
-mobility <- c(.2,.1)
-J <- c(100, 50)
-rho <- c(FALSE, TRUE)
-tau <- c("same", "different" )
-
-
-
-# #probably won't work.. need to figure out. 
-# sigma2.u2_init <-
-#   c("10,0,0,0, 0,10 "
-#     rbind(c(10, 0, 0, 0), c(0, 10, 0, 0), c(0, 0, 10, 0), c(0, 0, 0, 10)), #1
-#     rbind(c(10, 0, 0, 0), c(0, 12, 0, 0), c(0, 0, 14, 0), c(0, 0, 0, 16)), #2
-#     rbind(c(10, 6, 5, 4), c(6, 10, 6, 5), c(5, 6, 10, 6), c(4, 5, 6, 10)), #3
-#     rbind(c(10, 6.57, 5.92, 5.06), c(6.57, 12, 7.78, 6.93), c(5.92, 7.78, 14, 8.98),c(5.06, 6.93, 8.98, 16))
-#     )
-
-
-
-
-#not conditions.. maybe set as default. 
-
-# Number of replications
-reps <- 2
-
-
-param_list <- list(
-  mobility=mobility, 
-  J=J, 
-  rho = rho, 
-  tau = tau,
-  reps = reps
-)
-
-
-#not_right..
-params <- 
-  param_list %>%
-  cross_df() %>%
-  mutate(
-    seed = 1:n() + sample(2^30, size = 1),
-  )
-
-rownames(params) <- NULL
-
-print(paste0(nrow(params), " fully crossed experimental conditions have been generated."))
-
-
-
-source_obj <- setdiff(ls(), c("params"))
-
-
-```
-
-
-
-```{r, eval= F}
-
-library(Pusto)
-
-cluster <- Pusto::start_parallel(source_obj = source_obj, setup = "register")
-
-tm <- system.time(
-  results <- plyr::mdply(params, .f = runSim, 
-                         .parallel = TRUE)
-)
-
-tm 
-parallel::stopCluster(cluster)
-
-session_info <- sessionInfo()
-run_date <- date()
-
-save(params, results, session_info, run_date, file = "Simulations/simulation results.Rdata")
-
-
-
-```
 

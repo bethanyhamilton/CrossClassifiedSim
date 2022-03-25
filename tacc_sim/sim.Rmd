@@ -404,7 +404,7 @@ return(ccrem_mmrem_data)
 
 
 
-system.time(listdata <- getdata_ccrem_mmrem(mydata))
+#system.time(listdata <- getdata_ccrem_mmrem(mydata))
 
 getdata_rccrem <- function(data){
  #Check on this
@@ -461,11 +461,11 @@ loo and waic
 ```{r}
 run_mmrem <-
   function(data,
-           iterations = 100,
-           warmup_val = 10,
-           thin_val = 1,
-           chains_val = 2,
-           cores_val = 8,
+           iterations = 10000,
+           warmup_val = 5000,
+           thin_val = 10,
+           chains_val = 4,
+           cores_val = 4,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -481,6 +481,9 @@ run_mmrem <-
     
     ccrem_mmrem_data <- getdata_ccrem_mmrem(data)
     
+        
+  # system.time( 
+    
     mm_stan_fit <-
       stan(
         model_code = mmrem_model,
@@ -492,7 +495,7 @@ run_mmrem <-
         cores = cores_val, ### change this maybe
         control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth)
       )
-    
+ #  )
     
     # LOO 
     mm_loo <- loo(mm_stan_fit, k_threshold = 0.7, save_psis = TRUE)
@@ -522,16 +525,16 @@ run_mmrem <-
   }
 
 
-system.time(test <- run_mmrem(data= mydata))
+#system.time(test <- run_mmrem(data= mydata))
 
 
 run_ccrem <-
   function(data,
-           iterations = 100,
-           warmup_val = 10,
-           thin_val = 1,
+          iterations =  25000,
+           warmup_val = 15000,
+           thin_val = 10,
            chains_val = 2,
-           cores_val = 8,
+           cores_val = 4,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -541,7 +544,8 @@ run_ccrem <-
     
     ccrem_mmrem_data <- getdata_ccrem_mmrem(data)
     
-    
+        
+  # system.time( 
     cc_stan_fit <-
       stan(
         model_code = ccrem_model,
@@ -553,6 +557,7 @@ run_ccrem <-
         cores = cores_val,
         control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth)
       )
+#    )
     
         # LOO 
     cc_loo <- loo(cc_stan_fit, k_threshold = 0.7, save_psis = TRUE)
@@ -584,16 +589,16 @@ run_ccrem <-
                       
   }
 
-#test2 <- run_ccrem(data= mydata)
+#system.time(test2 <- run_ccrem(data= mydata))
 
 
 run_rccrem <-
   function(data,
-           iterations = 100,
-           warmup_val = 10,
-           thin_val = 1,
+           iterations =  50000,
+           warmup_val = 25000,
+           thin_val = 10,
            chains_val = 2,
-           cores_val = 8,
+           cores_val = 4,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -605,7 +610,8 @@ run_rccrem <-
     rccrem_data <- getdata_rccrem(data)
   
     
-    rcc_stan_fit <-
+  # system.time( 
+     rcc_stan_fit <-
       stan(
         model_code = rccrem_model_new,
         data = rccrem_data,
@@ -616,6 +622,7 @@ run_rccrem <-
         cores = cores_val,
         control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth)
       )
+  #   )
     
     
           # LOO 
@@ -662,7 +669,7 @@ run_rccrem <-
 
 
 
-#test3 <- run_rccrem(data= mydata)
+system.time(test3 <- run_rccrem(data= mydata))
 
 ```
 

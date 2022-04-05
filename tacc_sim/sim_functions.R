@@ -409,6 +409,7 @@ getdata_rccrem <- function(data){
 ################################
 run_mmrem <-
   function(data,
+           mobility = mobility, J = J, rho = rho, tau = tau,
            iterations = 100,
            warmup_val = 10,
            thin_val = 1,
@@ -443,6 +444,7 @@ run_mmrem <-
     return(
       data.frame(
         model = "mmrem",
+        mobility = mobility, J = J, rho = rho, tau = tau,
         int_mean = summary(mm_stan_fit)$summary["popint", "mean"],
         int_median = summary(mm_stan_fit)$summary["popint", "50%"],#median instead? 50%
         slope_mean = summary(mm_stan_fit)$summary["popslope", "mean"],
@@ -463,6 +465,7 @@ run_mmrem <-
 
 run_ccrem <-
   function(data,
+           mobility = mobility, J = J, rho = rho, tau = tau,
            iterations = 100,
            warmup_val = 10,
            thin_val = 1,
@@ -495,7 +498,8 @@ run_ccrem <-
     cc_waic <- waic(LL_cc)
     
     
-    return(data.frame(model = "mmrem",
+    return(data.frame(model = "ccrem",
+                      mobility = mobility, J = J, rho = rho, tau = tau,
                       int_mean = summary(cc_stan_fit)$summary["popint", "mean"],
                       int_median = summary(cc_stan_fit)$summary["popint", "50%"],
                       slope_mean = summary(cc_stan_fit)$summary["popslope", "mean"],
@@ -521,6 +525,7 @@ run_ccrem <-
 
 run_rccrem <-
   function(data,
+           mobility = mobility, J = J, rho = rho, tau = tau,
            iterations = 100,
            warmup_val = 10,
            thin_val = 1,
@@ -553,7 +558,8 @@ run_rccrem <-
     rcc_waic <- waic(LL_rcc)
     
     
-    return(data.frame(model = "mmrem",                    
+    return(data.frame(model = "rccrem",  
+                      mobility = mobility, J = J, rho = rho, tau = tau,
                       int_mean = summary(rcc_stan_fit)$summary["popint", "mean"],
                       int_median = summary(rcc_stan_fit)$summary["popint", "50%"],
                       slope_mean = summary(rcc_stan_fit)$summary["popslope", "mean"],
@@ -598,32 +604,35 @@ run_rccrem <-
 ################################
 
 
-runmodels <- function(data, mmrem=TRUE, ccrem=TRUE, rccrem=TRUE){
+runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau, 
+                      mmrem=TRUE, ccrem=TRUE, rccrem=TRUE){
   suppressPackageStartupMessages(require(dplyr, quietly = TRUE, warn.conflicts = FALSE))
   
   suppressPackageStartupMessages(require(rstan, quietly = TRUE, warn.conflicts = FALSE))
   
   suppressPackageStartupMessages(require(loo, quietly = TRUE, warn.conflicts = FALSE))
   
+  data <- UDF_sample(mobility = mobility, J = J, rho=rho, tau=tau)
+  
   res <- data.frame()
   
   
   if (mmrem) {
-    res_mmrem <- run_mmrem(data)
+    res_mmrem <- run_mmrem(data, mobility = mobility, J = J, rho = rho, tau = tau)
     
     res <- bind_rows(list(res, res_mmrem))
     
   }
   
   if (ccrem) {
-    res_ccrem <- run_ccrem(data)
+    res_ccrem <- run_ccrem(data, mobility = mobility, J = J, rho = rho, tau = tau)
     
     res <- bind_rows(list(res, res_ccrem))
     
   }
   
   if (rccrem) {
-    res_rccrem <- run_rccrem(data)
+    res_rccrem <- run_rccrem(data, mobility = mobility, J = J, rho = rho, tau = tau)
     
     res <- bind_rows(list(res, res_rccrem))
     
@@ -647,19 +656,45 @@ runSim <- function(reps, mobility, J, rho, tau, mmrem=TRUE, ccrem=TRUE, rccrem=T
   if (!is.null(seed)) set.seed(seed)
   
   replicates <- rerun(reps, {
-    UDF_sample(mobility = mobility, J = J, rho=rho, tau=tau) %>%
-      runmodels(mmrem = mmrem,ccrem = ccrem, rccrem= rccrem)
+    runmodels(mobility = mobility, J = J, rho=rho, tau=tau,
+              mmrem = mmrem,ccrem = ccrem, rccrem= rccrem)
   })
   
   
-  #fix this... 
-  replicates %>%
-    bind_rows() %>%
-    group_by(model) #%>% 
+  #fix this... remove dplyr
+  #replicates %>%
+  #  bind_rows() %>%
+  #  group_by(model) #%>% 
   # summarise(
   # 
   # )
   
+  # answer  
+  result <- do.call(rbind, replicates)
+  
+  tau_same <- subset(result, tau == "same")
+  tau_same$rb_int = (tau_same$int_mean - 100)/100
+  tau_same$rb_slope = (tau_same$slope_mean - 10)/10
+  tau_same$rb_sigma_y = (tau_same$sigma_y_mean - 10)/10
+  tau_same$rb_sigma_u2 = (tau_same$sigma_u2_mean - 10)/10
+  tau_same$rb_sigma_u2_1 = (tau_same$sigma_u2_1_mean - 10)/10
+  tau_same$rb_sigma_u2_2 = (tau_same$sigma_u2_2_mean - 10)/10
+  tau_same$rb_sigma_u2_3 = (tau_same$sigma_u2_3_mean - 10)/10
+  tau_same$rb_sigma_u2_4 = (tau_same$sigma_u2_4_mean - 10)/10
+  
+  tau_diff <- subset(result, tau == "different")
+  tau_diff$rb_int = (tau_diff$int_mean - 100)/100
+  tau_diff$rb_slope = (tau_diff$slope_mean - 10)/10
+  tau_diff$rb_sigma_y = (tau_diff$sigma_y_mean - 10)/10
+  tau_diff$rb_sigma_u2 = (tau_diff$sigma_u2_mean - 10)/10
+  tau_diff$rb_sigma_u2_1 = (tau_diff$sigma_u2_1_mean - 10)/10
+  tau_diff$rb_sigma_u2_2 = (tau_diff$sigma_u2_2_mean - 12)/12
+  tau_diff$rb_sigma_u2_3 = (tau_diff$sigma_u2_3_mean - 14)/14
+  tau_diff$rb_sigma_u2_4 = (tau_diff$sigma_u2_4_mean - 16)/16
+  
+  rbind(tau_same, tau_diff)
+  
 }
+
 #runSim(reps=2, mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same"))
 

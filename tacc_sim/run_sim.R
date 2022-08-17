@@ -1,63 +1,43 @@
+library(rstan)
+library(loo)
+library(purrr)
+library(future)
+library(furrr)
+library(dplyr)
+
+rm(list = ls())
 source("sim_functions.R")
 
-
-library(dplyr)
-library(purrr)
-library(Pusto)
-
-
-set.seed(20222203)
 # Experimental factors
-mobility <- c(.2,.1)
-J <- c(100, 50)
-rho <- c(FALSE, TRUE)
-tau <- c("same", "different" )
-
-
-# Number of replications How many??
-reps <- 2
-
-
 param_list <- list(
-  mobility=mobility, 
-  J=J, 
-  rho = rho, 
-  tau = tau,
-  reps = reps
+  mobility = c(.2,.1),
+  J = c(100, 50),
+  rho = c(FALSE, TRUE),
+  tau = c("same", "different")
 )
 
-
-#not_right..
-params <- 
-  param_list %>%
-  cross_df() %>%
-  mutate(
-    seed = 1:n() + sample(2^30, size = 1),
-  )
-
-rownames(params) <- NULL
-
+params <- param_list %>% cross_df()
+params$reps <- 2 # Number of replications?
+params$seed <- 1:nrow(params) + sample(2^30, size = 1) # set seed
 print(paste0(nrow(params), " fully crossed experimental conditions have been generated."))
+params
+
+# run simulations ---------------------------------------------------------
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores() - 2)
+options(error=recover)
+plan("multisession") 
+
+system.time(
+  results <-
+    params %>%
+    mutate(res = future_pmap(., .f = runSim, .options = furrr_options(seed=NULL))) %>% 
+    dplyr::select(-c(mobility, J, rho, tau)) %>% 
+    tidyr::unnest(cols = res)
+) 
 
 
-
-source_obj <- ls()
-
-
-
-
-cluster <- Pusto::start_parallel(source_obj = source_obj, setup = "register")
-
-tm <- system.time(
-  results <- plyr::mdply(params, .f = runSim, 
-                         .parallel = TRUE)
-)
-
-tm 
-parallel::stopCluster(cluster)
-
+# save results ------------------------------------------------------------
 session_info <- sessionInfo()
 run_date <- date()
-
-save(params, results, session_info, run_date, file = "simulation_results.Rdata")
-
+save(params, results, session_info, run_date, file = "sim_2rep.Rdata")

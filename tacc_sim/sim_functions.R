@@ -1,19 +1,5 @@
-library(brms)
-library(shinystan)
-library(rstan)
-library(coda)
-library(ggplot2)
-library(bayesplot)
-library(tidyverse)
-library(parallel)
-library(loo)
-library(bridgesampling)
-library(MASS)
-
-#######################
-####### Models ########
-#######################
-
+# Models ---------------------------------------------------------
+## mmrem_model ---------------------------------------------------
 mmrem_model<- '
 data {
   int<lower=1> n;  // number of observations
@@ -39,12 +25,9 @@ parameters {
 
 model {
 
-  //popint ~ normal(0,10);
-  //popslope ~ normal(0,10);
-  
   //precision is 1/variance. variance - 10,000
-  popint ~ normal(0,100);
-  popslope ~ normal(0,100);
+  popint ~ normal(100,100);
+  popslope ~ normal(10,100);
 
   for (j in 1:J){
     u2[j] ~ normal(0,sigma_u2);
@@ -71,6 +54,7 @@ log_lik[i] = normal_lpdf(y[i]| popint + popslope*x[i] + w[i,1] * u2[group1[i]] +
 
 '
 
+## ccrem_model ---------------------------------------------------
 ccrem_model<- '
 data {
 int<lower=1> n;  // number of observations
@@ -95,8 +79,8 @@ matrix[J, 4] u2;
 
 model {
 
-popint ~ normal(0,100);
-popslope ~ normal(0,100);
+popint ~ normal(100,100);
+popslope ~ normal(10,100);
   
   
 for (j in 1:J){
@@ -124,7 +108,7 @@ log_lik[i] = normal_lpdf(y[i]| popint + popslope*x[i] + u2[group1[i],1] + u2[gro
 }
 }
 '
-
+## rccrem_model --------------------------------------------------
 rccrem_model_new <- 
   'data {
   int<lower=1> n; // number of observations
@@ -163,8 +147,8 @@ transformed parameters {
 
 
 model {
-  popint ~ normal(0,100);
-  popslope ~ normal(0,100);
+  popint ~ normal(100,100);
+  popslope ~ normal(10,100);
   sigma_y ~  uniform(0, 100);
   
   for (k in 1:4){
@@ -208,12 +192,9 @@ generated quantities {
   }
 }
 '
-################################
-####### Data Generation ########
-################################
+# Data Generation ------------------------------------------------
 UDF_sample <- function(mobility, J, rho, tau) {
   require(MASS)
-  
   
   m <- 10
   mu.X_init <- 0
@@ -283,10 +264,8 @@ UDF_sample <- function(mobility, J, rho, tau) {
 
 #tm <- system.time(mydata <- UDF_sample(mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same")))
 
-################################
-####### Make data list #########
-################################
 
+# Make data list ----------------------------------------------------------
 getdata_ccrem_mmrem <- function(data){
   # pre_data
   k = 4
@@ -404,17 +383,15 @@ getdata_rccrem <- function(data){
 }
 #system.time(listdata <- getdata_rccrem(mydata))
 
-################################
-####### Run Models Funcs #######
-################################
+# Run Models Funcs --------------------------------------------------------
 run_mmrem <-
   function(data,
-           mobility = mobility, J = J, rho = rho, tau = tau,
-           iterations = 100,
-           warmup_val = 10,
-           thin_val = 1,
-           chains_val = 2,
-           cores_val = 8,
+           mobility, J, rho, tau,
+           iterations = 2000,
+           warmup_val = 1000,
+           thin_val = 10,
+           chains_val = 3,
+           cores_val = 6,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -441,36 +418,33 @@ run_mmrem <-
     LL_mm <- extract_log_lik(mm_stan_fit)
     mm_waic <- waic(LL_mm)
     
+    summary <- summary(mm_stan_fit)$summary
+    summary <- summary[1:4,]
+    summary <- summary %>% as.data.frame() %>% tibble::rownames_to_column("paramtype") 
+      
     return(
-      data.frame(
-        model = "mmrem",
-        mobility = mobility, J = J, rho = rho, tau = tau,
-        int_mean = summary(mm_stan_fit)$summary["popint", "mean"],
-        int_median = summary(mm_stan_fit)$summary["popint", "50%"],#median instead? 50%
-        slope_mean = summary(mm_stan_fit)$summary["popslope", "mean"],
-        slope_median = summary(mm_stan_fit)$summary["popslope", "50%"],
-        sigma_y_mean = summary(mm_stan_fit)$summary["sigma_y", "mean"],
-        sigma_y_median = summary(mm_stan_fit)$summary["sigma_y", "50%"],
-        sigma_u2_mean = summary(mm_stan_fit)$summary["sigma_u2", "mean"],
-        sigma_u2_median = summary(mm_stan_fit)$summary["sigma_u2", "50%"],
-        loo_est = mm_loo$estimates["looic", "Estimate"],
-        waic_est = mm_waic$estimates["waic", "Estimate"])
-    )
-    
-    
+    summary %>% 
+          tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
+          mutate(paramtype = paste(paramtype, name, sep = "_")) %>% 
+          tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>% 
+          mutate(model = "mmrem",
+                 mobility = mobility, J = J, rho = rho, tau = tau) %>% 
+          dplyr::select(model, mobility, J, rho, tau, starts_with("popint"),
+                        starts_with("popslope"), starts_with("sigma_y"),
+                        starts_with("sigma_u")) %>% 
+          mutate(loo_est = mm_loo$estimates["looic", "Estimate"],
+                 waic_est = mm_waic$estimates["waic", "Estimate"]))
   }
-
-#system.time(test <- run_mmrem(data= mydata))
 
 
 run_ccrem <-
   function(data,
-           mobility = mobility, J = J, rho = rho, tau = tau,
-           iterations = 100,
-           warmup_val = 10,
-           thin_val = 1,
-           chains_val = 2,
-           cores_val = 8,
+           mobility, J, rho, tau,
+           iterations = 2000,
+           warmup_val = 1000,
+           thin_val = 10,
+           chains_val = 4,
+           cores_val = 6,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -497,43 +471,34 @@ run_ccrem <-
     LL_cc <- extract_log_lik(cc_stan_fit)
     cc_waic <- waic(LL_cc)
     
+    summary <- summary(cc_stan_fit)$summary
+    summary <- summary[1:7,]
+    summary <- summary %>% as.data.frame() %>% tibble::rownames_to_column("paramtype") 
     
-    return(data.frame(model = "ccrem",
-                      mobility = mobility, J = J, rho = rho, tau = tau,
-                      int_mean = summary(cc_stan_fit)$summary["popint", "mean"],
-                      int_median = summary(cc_stan_fit)$summary["popint", "50%"],
-                      slope_mean = summary(cc_stan_fit)$summary["popslope", "mean"],
-                      slope_median = summary(cc_stan_fit)$summary["popslope", "50%"],
-                      sigma_y_mean = summary(cc_stan_fit)$summary["sigma_y", "mean"],
-                      sigma_y_median = summary(cc_stan_fit)$summary["sigma_y", "50%"],
-                      sigma_u2_1_mean = summary(cc_stan_fit)$summary["sigma_u2[1]", "mean"],
-                      sigma_u2_1_median = summary(cc_stan_fit)$summary["sigma_u2[1]", "50%"],
-                      sigma_u2_2_mean =  summary(cc_stan_fit)$summary["sigma_u2[2]", "mean"],
-                      sigma_u2_2_median =  summary(cc_stan_fit)$summary["sigma_u2[2]", "50%"],
-                      sigma_u2_3_mean = summary(cc_stan_fit)$summary["sigma_u2[3]", "mean"],
-                      sigma_u2_3_median = summary(cc_stan_fit)$summary["sigma_u2[3]", "50%"],
-                      sigma_u2_4_mean =  summary(cc_stan_fit)$summary["sigma_u2[4]", "mean"],
-                      sigma_u2_4_median =  summary(cc_stan_fit)$summary["sigma_u2[4]", "50%"],
-                      loo_est = cc_loo$estimates["looic", "Estimate"],
-                      waic_est = cc_waic$estimates["waic", "Estimate"] )
-    )
-    
-    
+    return(
+      summary %>% 
+        tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
+        mutate(paramtype = paste(paramtype, name, sep = "_")) %>% 
+        tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>% 
+        mutate(model = "ccrem",
+               mobility = mobility, J = J, rho = rho, tau = tau) %>% 
+        dplyr::select(model, mobility, J, rho, tau, starts_with("popint"),
+                      starts_with("popslope"), starts_with("sigma_y"),
+                      starts_with("sigma_u")) %>% 
+        mutate(loo_est = cc_loo$estimates["looic", "Estimate"],
+               waic_est = cc_waic$estimates["waic", "Estimate"]))
   }
-
-#system.time(test2 <- run_ccrem(data= mydata))
 
 run_rccrem <-
   function(data,
-           mobility = mobility, J = J, rho = rho, tau = tau,
-           iterations = 100,
-           warmup_val = 10,
-           thin_val = 1,
-           chains_val = 2,
-           cores_val = 8,
+           mobility, J, rho, tau,
+           iterations = 3000,
+           warmup_val = 1500,
+           thin_val = 10,
+           chains_val = 4,
+           cores_val = 6,
            adapt_delta = 0.999,
            max_treedepth = 25) {
-    
     
     rccrem_data <- getdata_rccrem(data)
     
@@ -557,53 +522,38 @@ run_rccrem <-
     LL_rcc <- extract_log_lik(rcc_stan_fit)
     rcc_waic <- waic(LL_rcc)
     
+    summary <- summary(rcc_stan_fit)$summary
+    summary <- 
+      bind_rows(summary["popint",], summary["popslope",], summary["sigma_y",],
+              summary["sigma_u2[1]",], summary["sigma_u2[2]",],
+              summary["sigma_u2[3]",], summary["sigma_u2[4]",],
+              summary["rho_12",], summary["rho_13",], summary["rho_13",],
+              summary["rho_23",], summary["rho_24",], summary["rho_34",]) %>% 
+      mutate(paramtype = c("popint", "popslope", "sigma_y", 
+                           "sigma_u2[1]", "sigma_u2[2]", "sigma_u2[3]",
+                           "sigma_u2[4]", "rho_12", "rho_13", "rho_14",
+                           "rho_23", "rho_24", "rho_34")) %>% 
+      dplyr::select(paramtype, everything())
     
-    return(data.frame(model = "rccrem",  
-                      mobility = mobility, J = J, rho = rho, tau = tau,
-                      int_mean = summary(rcc_stan_fit)$summary["popint", "mean"],
-                      int_median = summary(rcc_stan_fit)$summary["popint", "50%"],
-                      slope_mean = summary(rcc_stan_fit)$summary["popslope", "mean"],
-                      slope_median =  summary(rcc_stan_fit)$summary["popslope", "50%"],
-                      sigma_y_mean = summary(rcc_stan_fit)$summary["sigma_y", "mean"],
-                      sigma_y_median = summary(rcc_stan_fit)$summary["sigma_y", "50%"],
-                      sigma_u2_1_mean = summary(rcc_stan_fit)$summary["sigma_u2[1]", "mean"],
-                      sigma_u2_1_median =  summary(rcc_stan_fit)$summary["sigma_u2[1]", "50%"],
-                      sigma_u2_2_mean =  summary(rcc_stan_fit)$summary["sigma_u2[2]", "mean"],
-                      sigma_u2_2_median = summary(rcc_stan_fit)$summary["sigma_u2[2]", "50%"],
-                      sigma_u2_3_mean = summary(rcc_stan_fit)$summary["sigma_u2[3]", "mean"],
-                      sigma_u2_3_median = summary(rcc_stan_fit)$summary["sigma_u2[3]", "50%"],
-                      sigma_u2_4_mean =  summary(rcc_stan_fit)$summary["sigma_u2[4]", "mean"],
-                      sigma_u2_4_median = summary(rcc_stan_fit)$summary["sigma_u2[4]", "50%"],
-                      rho_12_mean = summary(rcc_stan_fit)$summary["rho_12", "mean"],
-                      rho_12_median = summary(rcc_stan_fit)$summary["rho_12", "50%"],
-                      rho_13_mean = summary(rcc_stan_fit)$summary["rho_13", "mean"],
-                      rho_13_median = summary(rcc_stan_fit)$summary["rho_13", "50%"],
-                      rho_14_mean = summary(rcc_stan_fit)$summary["rho_14", "mean"],
-                      rho_14_median = summary(rcc_stan_fit)$summary["rho_14", "50%"],
-                      rho_23_mean =  summary(rcc_stan_fit)$summary["rho_23", "mean"],
-                      rho_23_median = summary(rcc_stan_fit)$summary["rho_23", "50%"],
-                      rho_24_mean = summary(rcc_stan_fit)$summary["rho_24", "mean"],
-                      rho_24_median = summary(rcc_stan_fit)$summary["rho_24", "50%"],
-                      rho_34_mean =  summary(rcc_stan_fit)$summary["rho_34", "mean"],
-                      rho_34_median = summary(rcc_stan_fit)$summary["rho_34", "50%"],
-                      loo_est = rcc_loo$estimates["looic", "Estimate"],
-                      waic_est = rcc_waic$estimates["waic", "Estimate"]
-                      
-    ))
     
+    return(
+      summary %>% 
+        tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
+        mutate(paramtype = paste(paramtype, name, sep = "_")) %>% 
+        tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>% 
+        mutate(model = "rccrem",
+               mobility = mobility, J = J, rho = rho, tau = tau) %>% 
+        dplyr::select(model, mobility, J, rho, tau, starts_with("popint"),
+                      starts_with("popslope"), starts_with("sigma_y"),
+                      starts_with("sigma_u"), starts_with("rho")) %>% 
+        mutate(loo_est = rcc_loo$estimates["looic", "Estimate"],
+               waic_est = rcc_waic$estimates["waic", "Estimate"]))
     
   }
 
 
 
-#system.time(test3 <- run_rccrem(data= mydata))
-
-
-################################
-########### Run Sims ###########
-################################
-
-
+# Run Sims ----------------------------------------------------------------
 runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau, 
                       mmrem=TRUE, ccrem=TRUE, rccrem=TRUE){
   suppressPackageStartupMessages(require(dplyr, quietly = TRUE, warn.conflicts = FALSE))
@@ -640,10 +590,8 @@ runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau,
   }
   
   res
-  
-  
-  
 }
+
 
 
 #res <- runmodels(data= mydata)
@@ -657,23 +605,12 @@ runSim <- function(reps, mobility, J, rho, tau, mmrem=TRUE, ccrem=TRUE, rccrem=T
   
   replicates <- rerun(reps, {
     runmodels(mobility = mobility, J = J, rho=rho, tau=tau,
-              mmrem = mmrem,ccrem = ccrem, rccrem= rccrem)
-  })
+              mmrem = mmrem, ccrem = ccrem, rccrem= rccrem)
+  }) %>% 
+    dplyr::bind_rows() 
   
-  
-  #fix this... remove dplyr
-  #replicates %>%
-  #  bind_rows() %>%
-  #  group_by(model) #%>% 
-  # summarise(
-  # 
-  # )
-  
-  # answer  
-  result <- do.call(rbind, replicates)
-  result
-  
+  replicates
 }
 
-#runSim(reps=2, mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same"))
+# runSim(reps=2, mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same"))
 

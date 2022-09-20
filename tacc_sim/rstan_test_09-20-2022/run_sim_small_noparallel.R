@@ -1,12 +1,13 @@
-require(rstan)
-require(StanHeaders)
-require(RcppEigen)
-require(BH)
-require(loo)
-require(purrr)
-require(future)
-require(furrr) # version = "0.1.0" for tacc
-# require(dplyr) # version = "0.7.6" for tacc
+require(rstan)       # 2.17.3
+require(StanHeaders) # 2.17.2
+require(RcppEigen)   # 0.3.3.3.0
+require(BH)          # 1.65.0-1
+require(purrr)       # 0.3.4
+# require(future)    # ?
+# require(furrr)     # ?
+# require(loo)       # ?
+# require(dplyr)     # ?
+# require(tidyr)     # ?
 
 rm(list = ls())
 source("sim_functions_small.R")

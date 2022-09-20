@@ -75,13 +75,7 @@ To avoid recompilation of unchanged Stan programs, we recommend calling
 rstan_options(auto_write = TRUE)
 Loading required package: RcppEigen
 Loading required package: BH
-Loading required package: loo
-This is loo version 2.5.1
-- Online documentation and vignettes at mc-stan.org/loo
-- As of v2.0.0 loo defaults to 1 core but we recommend using as many as possible. Use the 'cores' argument or set options(mc.cores = NUM_CORES) for an entire session. 
 Loading required package: purrr
-Loading required package: future
-Loading required package: furrr
 Loading required package: MASS
 
 Attaching package: ‘MASS’
@@ -90,3 +84,8 @@ The following object is masked from ‘package:dplyr’:
 
     select
 
+Warning messages:
+1: There were 25 divergent transitions after warmup. Increasing adapt_delta above 0.999 may help. See
+http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup 
+2: Examine the pairs() plot to diagnose sampling problems
+ 

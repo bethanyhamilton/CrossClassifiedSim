@@ -6,14 +6,14 @@ require(furrr) # version = "0.1.0" for tacc
 require(dplyr) # version = "0.7.6" for tacc
 
 rm(list = ls())
-source("sim_functions.R")
+source("sim_functions_small.R")
 
 # Experimental factors
 param_list <- list(
   mobility = c(.2,.1),
-  J = c(100, 50),
-  rho = c(FALSE, TRUE),
-  tau = c("same", "different")
+  J = 100,#c(100, 50),
+  rho = FALSE,#c(FALSE, TRUE),
+  tau = "same"# c("same", "different")
 )
 
 params <- param_list %>% cross_df()
@@ -24,7 +24,7 @@ params
 
 # run simulations ---------------------------------------------------------
 rstan_options(auto_write = TRUE)
-# options(mc.cores = parallel::detectCores() - 2)
+options(mc.cores = parallel::detectCores())
 options(error=recover)
 plan("multisession") 
 
@@ -40,4 +40,4 @@ system.time(
 # save results ------------------------------------------------------------
 session_info <- sessionInfo()
 run_date <- date()
-save(params, results, session_info, run_date, file = "sim_1rep.Rdata")
+save(params, results, session_info, run_date, file = "sim_1rep_small.Rdata")

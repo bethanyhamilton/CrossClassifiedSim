@@ -112,6 +112,7 @@ log_lik[i] = normal_lpdf(y[i]| popint + popslope*x[i] + u2[group1[i],1] + u2[gro
 rccrem_model_new <- 
   'data {
   int<lower=1> n; // number of observations
+  real y[n];      // observations
   int<lower=1> J; //the number of levels of each type of school
   real x[n];
   int group1[n];
@@ -119,7 +120,6 @@ rccrem_model_new <-
   int group3[n];
   int group4[n];
   matrix[4, 4] W;
-  real y[n];      // observations
   vector<lower=0>[4] zeros;
 }
 
@@ -262,7 +262,7 @@ UDF_sample <- function(mobility, J, rho, tau) {
 }
 
 
-#tm <- system.time(mydata <- UDF_sample(mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same")))
+# data <- UDF_sample(mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same"))
 
 
 # Make data list ----------------------------------------------------------
@@ -391,7 +391,7 @@ run_mmrem <-
            warmup_val = 500,
            thin_val = 10,
            chains_val = 4,
-           cores_val = 6,
+           cores_val = cores_n,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -409,31 +409,35 @@ run_mmrem <-
         cores = cores_val,
         control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth)
       )
+
+    # LOO
+    # https://www.rdocumentation.org/packages/loo/versions/2.0.0/topics/loo
+    log_lik1 <- loo::extract_log_lik(mm_stan_fit, merge_chains = FALSE)
+    rel_n_eff <- relative_eff(exp(log_lik1))
+    mm_loo <- loo::loo(log_lik1, r_eff = rel_n_eff)
+    mm_waic <- loo::waic(log_lik1)
     
+    summary <- summary(mm_stan_fit)$summary %>% as.data.frame() %>% 
+      tibble::rownames_to_column("paramtype")
     
-    # LOO 
-    mm_loo <- loo(mm_stan_fit, k_threshold = 0.7, save_psis = TRUE)
-    
-    
-    LL_mm <- extract_log_lik(mm_stan_fit)
-    mm_waic <- waic(LL_mm)
-    
-    summary <- summary(mm_stan_fit)$summary
-    summary <- summary[1:4,]
-    summary <- summary %>% as.data.frame() %>% tibble::rownames_to_column("paramtype") 
-      
     return(
-    summary %>% 
-          tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
-          mutate(paramtype = paste(paramtype, name, sep = "_")) %>% 
-          tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>% 
-          mutate(model = "mmrem",
-                 mobility = mobility, J = J, rho = rho, tau = tau) %>% 
-          dplyr::select(model, mobility, J, rho, tau, starts_with("popint"),
-                        starts_with("popslope"), starts_with("sigma_y"),
-                        starts_with("sigma_u")) %>% 
-          mutate(loo_est = mm_loo$estimates["looic", "Estimate"],
-                 waic_est = mm_waic$estimates["waic", "Estimate"]))
+      summary %>%
+        tidyr::gather(key = "name", value = "value", 2:11) %>%
+        # tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
+        dplyr::mutate(paramtype = paste(paramtype, name, sep = "_")) %>%
+        dplyr::select(-name) %>%
+        tidyr::spread(paramtype, value) %>%
+        # tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>%
+        dplyr::mutate(model = "mmrem",
+                      mobility = mobility, J = J, rho = rho, tau = tau) %>%
+        dplyr::select(model, mobility, J, rho, tau, 
+                      starts_with("popint"),
+                      starts_with("popslope"), 
+                      starts_with("sigma_y"),
+                      starts_with("sigma_u")) %>%
+        dplyr::mutate(loo_est = mm_loo$estimates["looic", "Estimate"],
+                      waic_est = mm_waic$estimates["waic", "Estimate"])
+    )
   }
 
 
@@ -444,7 +448,7 @@ run_ccrem <-
            warmup_val = 500,
            thin_val = 10,
            chains_val = 4,
-           cores_val = 6,
+           cores_val = cores_n,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
@@ -465,28 +469,32 @@ run_ccrem <-
       )
     
     # LOO 
-    cc_loo <- loo(cc_stan_fit, k_threshold = 0.7, save_psis = TRUE)
+    log_lik1 <- loo::extract_log_lik(cc_stan_fit, merge_chains = FALSE)
+    rel_n_eff <- relative_eff(exp(log_lik1))
+    cc_loo <- loo::loo(log_lik1, r_eff = rel_n_eff)
+    cc_waic <- loo::waic(log_lik1)
     
-    
-    LL_cc <- extract_log_lik(cc_stan_fit)
-    cc_waic <- waic(LL_cc)
-    
-    summary <- summary(cc_stan_fit)$summary
-    summary <- summary[1:7,]
-    summary <- summary %>% as.data.frame() %>% tibble::rownames_to_column("paramtype") 
+    summary <- summary(cc_stan_fit)$summary %>% as.data.frame() %>% 
+      tibble::rownames_to_column("paramtype")
     
     return(
-      summary %>% 
-        tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
-        mutate(paramtype = paste(paramtype, name, sep = "_")) %>% 
-        tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>% 
-        mutate(model = "ccrem",
-               mobility = mobility, J = J, rho = rho, tau = tau) %>% 
-        dplyr::select(model, mobility, J, rho, tau, starts_with("popint"),
-                      starts_with("popslope"), starts_with("sigma_y"),
-                      starts_with("sigma_u")) %>% 
-        mutate(loo_est = cc_loo$estimates["looic", "Estimate"],
-               waic_est = cc_waic$estimates["waic", "Estimate"]))
+    summary %>%
+        tidyr::gather(key = "name", value = "value", 2:11) %>%
+        # tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>%
+        dplyr::mutate(paramtype = paste(paramtype, name, sep = "_")) %>%
+        dplyr::select(-name) %>%
+        tidyr::spread(paramtype, value) %>%
+        # tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>%
+        dplyr::mutate(model = "ccrem",
+               mobility = mobility, J = J, rho = rho, tau = tau) %>%
+        dplyr::select(model, mobility, J, rho, tau, 
+                      starts_with("popint"),
+                      starts_with("popslope"), 
+                      starts_with("sigma_y"),
+                      starts_with("sigma_u")) %>%
+        dplyr::mutate(loo_est = cc_loo$estimates["looic", "Estimate"],
+                      waic_est = cc_waic$estimates["waic", "Estimate"])
+    )
   }
 
 run_rccrem <-
@@ -496,12 +504,11 @@ run_rccrem <-
            warmup_val = 500,
            thin_val = 10,
            chains_val = 4,
-           cores_val = 6,
+           cores_val = cores_n,
            adapt_delta = 0.999,
            max_treedepth = 25) {
     
     rccrem_data <- getdata_rccrem(data)
-    
     
     rcc_stan_fit <-
       stan(
@@ -517,44 +524,39 @@ run_rccrem <-
     
     
     # LOO 
-    rcc_loo <- loo(rcc_stan_fit, k_threshold = 0.7, save_psis = TRUE)
+    log_lik1 <- loo::extract_log_lik(rcc_stan_fit, merge_chains = FALSE)
+    rel_n_eff <- relative_eff(exp(log_lik1))
+    rcc_loo <- loo::loo(log_lik1, r_eff = rel_n_eff)
+    rcc_waic <- loo::waic(log_lik1)
     
-    LL_rcc <- extract_log_lik(rcc_stan_fit)
-    rcc_waic <- waic(LL_rcc)
-    
-    summary <- summary(rcc_stan_fit)$summary
-    summary <- 
-      bind_rows(summary["popint",], summary["popslope",], summary["sigma_y",],
-              summary["sigma_u2[1]",], summary["sigma_u2[2]",],
-              summary["sigma_u2[3]",], summary["sigma_u2[4]",],
-              summary["rho_12",], summary["rho_13",], summary["rho_13",],
-              summary["rho_23",], summary["rho_24",], summary["rho_34",]) %>% 
-      mutate(paramtype = c("popint", "popslope", "sigma_y", 
-                           "sigma_u2[1]", "sigma_u2[2]", "sigma_u2[3]",
-                           "sigma_u2[4]", "rho_12", "rho_13", "rho_14",
-                           "rho_23", "rho_24", "rho_34")) %>% 
-      dplyr::select(paramtype, everything())
-    
+    summary <- summary(rcc_stan_fit)$summary %>% as.data.frame() %>% 
+      tibble::rownames_to_column("paramtype")
     
     return(
-      summary %>% 
-        tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>% 
-        mutate(paramtype = paste(paramtype, name, sep = "_")) %>% 
-        tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>% 
-        mutate(model = "rccrem",
-               mobility = mobility, J = J, rho = rho, tau = tau) %>% 
-        dplyr::select(model, mobility, J, rho, tau, starts_with("popint"),
-                      starts_with("popslope"), starts_with("sigma_y"),
-                      starts_with("sigma_u"), starts_with("rho")) %>% 
-        mutate(loo_est = rcc_loo$estimates["looic", "Estimate"],
-               waic_est = rcc_waic$estimates["waic", "Estimate"]))
-    
+      summary %>%
+        tidyr::gather(key = "name", value = "value", 2:11) %>%
+        # tidyr::pivot_longer(!paramtype, names_to = "name", values_to = "value") %>%
+        dplyr::mutate(paramtype = paste(paramtype, name, sep = "_")) %>%
+        dplyr::select(-name) %>%
+        tidyr::spread(paramtype, value) %>%
+        # tidyr::pivot_wider(!name, names_from = "paramtype", values_from = "value") %>%
+        dplyr::mutate(model = "rccrem",
+               mobility = mobility, J = J, rho = rho, tau = tau) %>%
+        dplyr::select(model, mobility, J, rho, tau, 
+                      starts_with("popint"),
+                      starts_with("popslope"), 
+                      starts_with("sigma_y"),
+                      starts_with("sigma_u"), 
+                      starts_with("rho")) %>%
+        dplyr::mutate(loo_est = rcc_loo$estimates["looic", "Estimate"],
+               waic_est = rcc_waic$estimates["waic", "Estimate"]) 
+      )
   }
 
 
 
 # Run Sims ----------------------------------------------------------------
-runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau, 
+runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau, cores_val = cores_n,
                       mmrem=TRUE, ccrem=TRUE, rccrem=TRUE){
   suppressPackageStartupMessages(require(dplyr, quietly = TRUE, warn.conflicts = FALSE))
   
@@ -568,23 +570,26 @@ runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau,
   
   
   if (mmrem) {
-    res_mmrem <- run_mmrem(data, mobility = mobility, J = J, rho = rho, tau = tau)
+    res_mmrem <- run_mmrem(data, mobility = mobility, J = J, rho = rho, tau = tau, 
+                           cores_val = cores_val)
     
-    res <- bind_rows(list(res, res_mmrem))
+    res <- dplyr::bind_rows(list(res, res_mmrem))
     
   }
   
   if (ccrem) {
-    res_ccrem <- run_ccrem(data, mobility = mobility, J = J, rho = rho, tau = tau)
+    res_ccrem <- run_ccrem(data, mobility = mobility, J = J, rho = rho, tau = tau, 
+                           cores_val = cores_val)
     
-    res <- bind_rows(list(res, res_ccrem))
+    res <- dplyr::bind_rows(list(res, res_ccrem))
     
   }
   
   if (rccrem) {
-    res_rccrem <- run_rccrem(data, mobility = mobility, J = J, rho = rho, tau = tau)
+    res_rccrem <- run_rccrem(data, mobility = mobility, J = J, rho = rho, tau = tau, 
+                             cores_val = cores_val)
     
-    res <- bind_rows(list(res, res_rccrem))
+    res <- dplyr::bind_rows(list(res, res_rccrem))
     
     
   }
@@ -596,30 +601,24 @@ runmodels <- function(mobility = mobility, J = J, rho=rho, tau=tau,
 
 #res <- runmodels(data= mydata)
 
-runSim <- function(reps, mobility, J, rho, tau, mmrem=TRUE, ccrem=TRUE, rccrem=TRUE, seed = NULL, ...){
+runSim <- function(iterations, mobility, J, rho, tau, cores_val,
+                   mmrem=TRUE, ccrem=TRUE, rccrem=TRUE, seed = NULL, ...){
   
   suppressPackageStartupMessages(require(purrr, quietly = TRUE, warn.conflicts = FALSE))
   suppressPackageStartupMessages(require(dplyr, quietly = TRUE, warn.conflicts = FALSE))
   
   if (!is.null(seed)) set.seed(seed)
   
-  replicates <- rerun(reps, {
-    runmodels(mobility = mobility, J = J, rho=rho, tau=tau,
-              mmrem = mmrem, ccrem = ccrem, rccrem= rccrem)
-  }) %>% 
-    dplyr::bind_rows() 
+  results <- 
+    rerun(iterations, {
+      runmodels(mobility = mobility, J = J, rho=rho, tau=tau, 
+                cores_val = cores_val,
+                mmrem = mmrem, ccrem = ccrem, rccrem= rccrem)
+  }) %>%
+    dplyr::bind_rows()
   
-  replicates
+  return(results)
 }
 
-# system.time(
-# results <- runSim(reps=1, mobility = c(.2), J = c(100),rho = c(FALSE), tau = c("same"))
-# )
 
-# convergence_diagnostics
-# results %>% dplyr::select(ends_with("Rhat"))
-# 
-# results %>% dplyr::select(ends_with("sd"), ends_with("eff")) %>% 
-#   mutate(popint_mcse = popint_sd/sqrt(popint_n_eff),
-#          popslope_mcse = popslope_sd/sqrt(popslope_n_eff),
-#          sigma_y_mcse = sigma_y_sd/sqrt(sigma_y_n_eff))
+

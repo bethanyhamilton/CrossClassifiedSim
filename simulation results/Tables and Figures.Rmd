@@ -17,7 +17,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, warning=F, message=F, out.width="80%", fig.align = 'center'}
+```{r, warning=F, message=F, out.width="65%", fig.align = 'center'}
 library(tidyverse)
 library(sjstats)
 library(knitr)
@@ -53,13 +53,13 @@ tidy_func <- function(obj){
     mutate_if(is.numeric, round, 3)
 }
 
-table_anova <- function(outcome, cov){
+table_anova <- function(outcome, cov, caption){
   fit1 <- aov(as.formula(paste0(outcome, fml)), data = cov)
   fit1 <- tidy_func(fit1)
   options(knitr.kable.NA = '')
   fit1 <- fit1[1:5,]
   fit1 %>%
-    kable(digits = 3, caption = "ANOVA") %>%
+    kable(digits = 3, caption = caption) %>%
     kable_styling(full_width = F) 
 }
 ```
@@ -67,7 +67,7 @@ table_anova <- function(outcome, cov){
 # 1. Absolute and Relative PB
 
 ## Intercept 
-```{r, warning=F, message=F, out.width="80%", fig.align = 'center'}
+```{r, warning=F, message=F, out.width="65%", fig.align = 'center'}
 # Relative PB --------------------------------------------------------------
 ## Intercept ---------------------------------------------------------------
 
@@ -80,18 +80,20 @@ abs_crit <- results %>%
 abs_crit %>% dplyr::select(model, mobility, J, rho, tau, bias) %>% 
   pivot_wider(., names_from = "model", values_from = "bias") %>% 
   dplyr::select(mobility, J, rho, tau, MMREM, CCREM, rCCREM) %>% 
-  kable(digits = 2) %>%
+  kable(digits = 2,
+        caption = "Absolute PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 
-table_anova("bias", abs_crit)
+table_anova("bias", abs_crit, caption = "ANOVA: Absolute PB")
 
 abs_bias <- abs_crit %>%
   ggplot(aes(x = rho, y = bias, fill = model, color = model)) + 
   geom_hline(yintercept = c(0)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   # facet_grid(rho ~ tau + mobility, scales = "free_y") +  
-  labs(x = "rho", y = "Absolute Parameter Bias") + 
+  labs(x = "rho", y = "Absolute Parameter Bias",
+       title = "Absolute PB") + 
   theme_bw() +
   theme(text = element_text(size = 13),
         legend.title = element_blank(),
@@ -113,11 +115,12 @@ rel_crit %>%
   dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
   pivot_wider(., names_from = "model", values_from = "rel_bias") %>% 
   dplyr::select(mobility, J, rho, tau, MMREM, CCREM, rCCREM) %>% 
-  kable(digits = 2) %>%
+  kable(digits = 2,
+        caption = "Relative PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 
-table_anova("rel_bias", rel_crit)
+table_anova("rel_bias", rel_crit, caption = "ANOVA: Relative PB")
 
 rel_bias <- rel_crit %>%
   ggplot(aes(x = rho, y = rel_bias, fill = model, color = model)) + 
@@ -125,7 +128,8 @@ rel_bias <- rel_crit %>%
   geom_hline(yintercept = c(0)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   # facet_grid(rho ~ tau + mobility, scales = "free_y") +  
-  labs(x = "rho", y = "Relative Parameter Bias") + 
+  labs(x = "rho", y = "Relative Parameter Bias",
+       title = "Relative PB") + 
   theme_bw() +
   theme(text = element_text(size = 13),
         legend.title = element_blank(),
@@ -137,7 +141,7 @@ rel_bias
 ```
 
 ## Slope
-```{r, warning=F, message=F, out.width="80%", fig.align = 'center'}
+```{r, warning=F, message=F, out.width="65%", fig.align = 'center'}
 ## Slope ------------------------------------------------------------------
 ## Absolute PB
 abs_crit <- results %>% 
@@ -149,18 +153,20 @@ abs_crit <- results %>%
 abs_crit %>% dplyr::select(model, mobility, J, rho, tau, bias) %>% 
   pivot_wider(., names_from = "model", values_from = "bias") %>% 
   dplyr::select(mobility, J, rho, tau, MMREM, CCREM, rCCREM) %>% 
-  kable(digits = 2) %>%
+  kable(digits = 2,
+        caption = "Absolute PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 
-table_anova("bias", abs_crit)
+table_anova("bias", abs_crit, caption = "ANOVA: Absolute PB")
 
 abs_bias <- abs_crit %>%
   ggplot(aes(x = J, y = bias, fill = model, color = model)) + 
   geom_hline(yintercept = c(0)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid( ~ rho, scales = "free_y") +
-  labs(x = "J", y = "Absolute Parameter Bias") + 
+  labs(x = "J", y = "Absolute Parameter Bias",
+       title = "Absolute PB") + 
   theme_bw() +
   theme(text = element_text(size = 13),
         legend.title = element_blank(),
@@ -182,11 +188,12 @@ rel_crit %>%
   dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
   pivot_wider(., names_from = "model", values_from = "rel_bias") %>% 
   dplyr::select(mobility, J, rho, tau, MMREM, CCREM, rCCREM) %>% 
-  kable(digits = 2) %>%
+  kable(digits = 2,
+        caption = "Relative PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 
-table_anova("rel_bias", rel_crit)
+table_anova("rel_bias", rel_crit, caption = "ANOVA: Relative PB")
 
 rel_bias <- rel_crit %>%
   ggplot(aes(x = J, y = rel_bias, fill = model, color = model)) + 
@@ -194,7 +201,8 @@ rel_bias <- rel_crit %>%
   geom_hline(yintercept = c(0)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid( ~ rho + mobility, scales = "free_y") +
-  labs(x = "J", y = "Relative Parameter Bias") + 
+  labs(x = "J", y = "Relative Parameter Bias",
+       title = "Relative PB") + 
   theme_bw() +
   theme(text = element_text(size = 13),
         legend.title = element_blank(),
@@ -206,7 +214,7 @@ rel_bias
 ```
 
 ## Level-1 Residual's SD
-```{r, warning=F, message=F, out.width="80%", fig.align = 'center'}
+```{r, warning=F, message=F, out.width="65%", fig.align = 'center'}
 ## Level-1 Residual's SD --------------------------------------------------
 ## Absolute PB
 abs_crit <- results %>% 
@@ -218,18 +226,20 @@ abs_crit <- results %>%
 abs_crit %>% dplyr::select(model, mobility, J, rho, tau, bias) %>% 
   pivot_wider(., names_from = "model", values_from = "bias") %>% 
   dplyr::select(mobility, J, rho, tau, MMREM, CCREM, rCCREM) %>% 
-  kable(digits = 2) %>%
+  kable(digits = 2,
+        caption = "Absolute PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 
-table_anova("bias", abs_crit)
+table_anova("bias", abs_crit, caption = "ANOVA: Absolute PB")
 
 abs_bias <- abs_crit %>%
   ggplot(aes(x = J, y = bias, fill = model, color = model)) + 
   geom_hline(yintercept = c(0)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid( ~ tau, scales = "free_y") +
-  labs(x = "J", y = "Absolute Parameter Bias") + 
+  labs(x = "J", y = "Absolute Parameter Bias",
+       title = "Absolute PB") + 
   theme_bw() +
   theme(text = element_text(size = 13),
         legend.title = element_blank(),
@@ -251,11 +261,12 @@ rel_crit %>%
   dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
   pivot_wider(., names_from = "model", values_from = "rel_bias") %>% 
   dplyr::select(mobility, J, rho, tau, MMREM, CCREM, rCCREM) %>% 
-  kable(digits = 2) %>%
+  kable(digits = 2,
+        caption = "Relative PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 
-table_anova("rel_bias", rel_crit)
+table_anova("rel_bias", rel_crit, caption = "ANOVA: Relative PB")
 
 rel_bias <- rel_crit %>%
   ggplot(aes(x = J, y = rel_bias, fill = model, color = model)) + 
@@ -263,7 +274,8 @@ rel_bias <- rel_crit %>%
   geom_hline(yintercept = c(0)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid( ~ tau, scales = "free_y") +
-  labs(x = "J", y = "Relative Parameter Bias") + 
+  labs(x = "J", y = "Relative Parameter Bias",
+       title = "Relative PB") + 
   theme_bw() +
   theme(text = element_text(size = 13),
         legend.title = element_blank(),
@@ -274,45 +286,69 @@ rel_bias <- rel_crit %>%
 rel_bias 
 ```
 
-## Avg RPB for Level-2 Residual's SD
-```{r, warning=F, message=F, out.width="80%", fig.align = 'center'}
+## Level-2 Residual's SD
+
+We've only used the data from the case where tau is "same." In the updated code, we'll capture the other tau conditions (10, 12, 14, 16) and look at the rest of the results.
+
+```{r, warning=F, message=F, out.width="65%", fig.align = 'center'}
 ## Avg RPB for Level-2 Residual's SD --------------------------------------
-mm <- results %>% 
-  filter(model == "MMREM") %>% 
-  mutate(true_param = 10) %>% 
+# Raw data
+mm_raw <- results %>% 
+  filter(model == "MMREM" & tau == "same") %>% 
+  select(model, mobility, J, rho, tau, `sigma_u2_50%`) %>% head(10)
+
+cc_raw <- results %>% 
+  filter(model == "CCREM" & tau == "same") %>% 
+  select(model, mobility, J, rho, tau, `sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
+         `sigma_u2[3]_50%`, `sigma_u2[4]_50%`) %>% head(10)
+
+mm_raw[,2:6] %>% 
+  bind_cols(cc_raw[,6:9]) %>% 
+  kable(digits = 2,
+        caption = "Raw data") %>% 
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" " = 4, "MMREM" = 1, "CCREM" = 4))  
+
+# Relative PB
+## MMREM
+mm_same <- results %>% 
+  filter(model == "MMREM" & tau == "same") %>% 
+  mutate(true_param = sqrt(10)) %>% 
   group_by(model, mobility, J, rho, tau) %>%
   group_modify(~ calc_relative(.x, estimates = `sigma_u2_50%`, 
                                true_param = true_param)) %>% 
   mutate(rel_bias = rel_bias - 1)
 
-# mm %>% dplyr::select(model, mobility, J, rho, tau, K, rel_bias)
+mm_same_rel_bias <- mm_same %>% 
+  dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
+  pivot_wider(., names_from = "model", values_from = "rel_bias") 
 
-mm <- results %>% 
-  filter(model == "MMREM") %>% 
-  filter(!is.na(`sigma_u2_50%`)) %>% nrow()
-mm/16
-
-cc <- results %>% 
-  filter(model == "CCREM") %>% 
-  filter(!is.na(`sigma_u2[1]_50%`)) %>% nrow()
-cc/16
-
-rcc <- results %>% 
-  filter(model == "rCCREM") %>% 
-  filter(!is.na(`sigma_u2[1]_50%`)) %>% nrow()
-rcc/16
-
-rcc <- results %>% 
-  filter(model == "rCCREM") %>% 
+# CCREM
+cc_same <- results %>% 
+  filter(model == "CCREM" & tau == "same") %>% 
+  select(model, mobility, J, rho, tau,
+         `sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
+         `sigma_u2[3]_50%`, `sigma_u2[4]_50%`) %>% 
+  pivot_longer(c(`sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
+         `sigma_u2[3]_50%`, `sigma_u2[4]_50%`), names_to = "sigma_u2_n",
+         values_to = "sigma_u2") %>% 
   mutate(true_param = sqrt(10)) %>% 
   group_by(model, mobility, J, rho, tau) %>%
-  group_modify(~ calc_relative(.x, estimates = `sigma_u2[1]_50%`, 
+  group_modify(~ calc_relative(.x, estimates = sigma_u2, 
                                true_param = true_param)) %>% 
   mutate(rel_bias = rel_bias - 1)
-rcc
-results %>% filter(model == "rCCREM") %>% 
-  dplyr::select(model, mobility, J, rho, tau, `sigma_u2[1]_50%`) %>% 
-  head()
+
+cc_same_rel_bias <- cc_same %>% 
+  dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
+  pivot_wider(., names_from = "model", values_from = "rel_bias") 
+  
+mm_same_rel_bias %>% 
+  left_join(cc_same_rel_bias, 
+            by = c("mobility", "J", "rho", "tau")) %>% 
+  kable(digits = 2,
+        caption = "Relative PB") %>%
+  kable_styling(full_width = F) %>% 
+  footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
 ```
 
-We have less than 300 replication.. probably due to convergence issue.
+  > The relative parameter bias of MMREM is still too large, but the values of CCREM seem reasonable, especially when rho = FALSE. It makes sense because CCREM should be good when there is no correlation. 

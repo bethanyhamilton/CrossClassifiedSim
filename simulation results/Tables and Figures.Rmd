@@ -294,61 +294,123 @@ We've only used the data from the case where tau is "same." In the updated code,
 ## Avg RPB for Level-2 Residual's SD --------------------------------------
 # Raw data
 mm_raw <- results %>% 
-  filter(model == "MMREM" & tau == "same") %>% 
+  filter(model == "MMREM") %>% 
   select(model, mobility, J, rho, tau, `sigma_u2_50%`) %>% head(10)
 
 cc_raw <- results %>% 
-  filter(model == "CCREM" & tau == "same") %>% 
+  filter(model == "CCREM") %>% 
+  select(model, mobility, J, rho, tau, `sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
+         `sigma_u2[3]_50%`, `sigma_u2[4]_50%`) %>% head(10)
+
+rcc_raw <- results %>% 
+  filter(model == "rCCREM") %>% 
   select(model, mobility, J, rho, tau, `sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
          `sigma_u2[3]_50%`, `sigma_u2[4]_50%`) %>% head(10)
 
 mm_raw[,2:6] %>% 
-  bind_cols(cc_raw[,6:9]) %>% 
+  bind_cols(cc_raw[,6:9], rcc_raw[, c(6:9)]) %>% 
   kable(digits = 2,
-        caption = "Raw data") %>% 
+        caption = "Raw data: MMREM and CCREM",
+        col.names = c("mobility", "J", "rho", "tau",
+                      "sigma_u2_50%",
+                      rep(c("sigma_u2[1]_50%", "sigma_u2[2]_50%",
+                            "sigma_u2[3]_50%", "sigma_u2[4]_50%"), 2))) %>% 
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" " = 4, "MMREM" = 1, "CCREM" = 4))  
+  add_header_above(c(" " = 4, "MMREM" = 1, "CCREM" = 4, "rCCREM" = 4))  %>% 
+  scroll_box(width = "800px")
 
 # Relative PB
 ## MMREM
-mm_same <- results %>% 
-  filter(model == "MMREM" & tau == "same") %>% 
+mm <- results %>% 
+  filter(model == "MMREM") %>% 
   mutate(true_param = sqrt(10)) %>% 
   group_by(model, mobility, J, rho, tau) %>%
   group_modify(~ calc_relative(.x, estimates = `sigma_u2_50%`, 
                                true_param = true_param)) %>% 
   mutate(rel_bias = rel_bias - 1)
 
-mm_same_rel_bias <- mm_same %>% 
+mm_rel_bias <- mm %>% 
   dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
   pivot_wider(., names_from = "model", values_from = "rel_bias") 
 
 # CCREM
-cc_same <- results %>% 
-  filter(model == "CCREM" & tau == "same") %>% 
+cc <- results %>% 
+  filter(model == "CCREM") %>% 
   select(model, mobility, J, rho, tau,
          `sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
          `sigma_u2[3]_50%`, `sigma_u2[4]_50%`) %>% 
   pivot_longer(c(`sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
          `sigma_u2[3]_50%`, `sigma_u2[4]_50%`), names_to = "sigma_u2_n",
          values_to = "sigma_u2") %>% 
-  mutate(true_param = sqrt(10)) %>% 
+  mutate(true_param = ifelse(tau == "same", sqrt(10), NA),
+         true_param = ifelse(tau == "different" & sigma_u2_n == "sigma_u2[1]_50%", sqrt(10),
+                      ifelse(tau == "different" & sigma_u2_n == "sigma_u2[2]_50%", sqrt(12),
+                      ifelse(tau == "different" & sigma_u2_n == "sigma_u2[3]_50%", sqrt(14),
+                      ifelse(tau == "different" & sigma_u2_n == "sigma_u2[4]_50%", sqrt(16),
+                             true_param))))) %>% 
   group_by(model, mobility, J, rho, tau) %>%
   group_modify(~ calc_relative(.x, estimates = sigma_u2, 
                                true_param = true_param)) %>% 
   mutate(rel_bias = rel_bias - 1)
 
-cc_same_rel_bias <- cc_same %>% 
+cc_rel_bias <- cc %>% 
   dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
   pivot_wider(., names_from = "model", values_from = "rel_bias") 
   
-mm_same_rel_bias %>% 
-  left_join(cc_same_rel_bias, 
+# rCCREM
+rcc <- results %>% 
+  filter(model == "rCCREM") %>% 
+  select(model, mobility, J, rho, tau,
+         `sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
+         `sigma_u2[3]_50%`, `sigma_u2[4]_50%`) %>% 
+  pivot_longer(c(`sigma_u2[1]_50%`, `sigma_u2[2]_50%`,
+         `sigma_u2[3]_50%`, `sigma_u2[4]_50%`), names_to = "sigma_u2_n",
+         values_to = "sigma_u2") %>% 
+  mutate(true_param = ifelse(tau == "same", sqrt(10), NA),
+         true_param = ifelse(tau == "different" & sigma_u2_n == "sigma_u2[1]_50%", sqrt(10),
+                      ifelse(tau == "different" & sigma_u2_n == "sigma_u2[2]_50%", sqrt(12),
+                      ifelse(tau == "different" & sigma_u2_n == "sigma_u2[3]_50%", sqrt(14),
+                      ifelse(tau == "different" & sigma_u2_n == "sigma_u2[4]_50%", sqrt(16),
+                             true_param))))) %>% 
+  group_by(model, mobility, J, rho, tau) %>%
+  group_modify(~ calc_relative(.x, estimates = sigma_u2, 
+                               true_param = true_param)) %>% 
+  mutate(rel_bias = rel_bias - 1)
+
+rcc_rel_bias <- rcc %>% 
+  dplyr::select(model, mobility, J, rho, tau, rel_bias) %>% 
+  pivot_wider(., names_from = "model", values_from = "rel_bias") 
+
+rel_bias <- mm_rel_bias %>% 
+  left_join(cc_rel_bias, 
             by = c("mobility", "J", "rho", "tau")) %>% 
+  left_join(rcc_rel_bias, 
+            by = c("mobility", "J", "rho", "tau")) 
+
+rel_bias %>% 
   kable(digits = 2,
         caption = "Relative PB") %>%
   kable_styling(full_width = F) %>% 
   footnote(general = "Means of the posterior distribution did not differ substantially from medians. Thus, the mean of the posterior distribution was used as the point estimate.")
+
+
+rel_bias %>% 
+  pivot_longer(5:7, names_to = "model", values_to = "rel_bias") %>% 
+  mutate(model = factor(model, levels = c("MMREM", "CCREM", "rCCREM"))) %>% 
+  ggplot(aes(x = J, y = rel_bias, fill = model, color = model)) + 
+  geom_hline(yintercept = c(-.05, .05), linetype = "dashed") +
+  geom_hline(yintercept = c(0)) +
+  geom_boxplot(alpha = .6, lwd = .1) + 
+  facet_grid( ~ tau, scales = "free_y") +
+  labs(x = "J", y = "Relative Parameter Bias",
+       title = "Relative PB") + 
+  theme_bw() +
+  theme(text = element_text(size = 13),
+        legend.title = element_blank(),
+        legend.position = "bottom",
+        plot.caption=element_text(hjust = 0),
+        # axis.text.x = element_text(angle=90, hjust=1)
+        )
 ```
 
-  > The relative parameter bias of MMREM is still too large, but the values of CCREM seem reasonable, especially when rho = FALSE. It makes sense because CCREM should be good when there is no correlation. 
+

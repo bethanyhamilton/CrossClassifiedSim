@@ -19,7 +19,7 @@ parameters {
   real<lower=0> sigma_y;
   real popint;
   real popslope;
-  vector[J] u2;
+  matrix[J, 4] u2;
 }
 
 
@@ -29,9 +29,17 @@ model {
   popint ~ normal(100,100);
   popslope ~ normal(10,100);
 
-  for (j in 1:J){
-    u2[j] ~ normal(0,sigma_u2);
-  }
+// old code change 9/22/23
+ // for (j in 1:J){
+ //   u2[j] ~ normal(0,sigma_u2);
+ // }
+
+// new code change 9/22/23
+for (j in 1:J){
+for (k in 1:4){
+u2[j,k] ~ normal(0,sigma_u2);
+}
+}
 
 
   sigma_u2 ~ uniform(0,100);
@@ -46,7 +54,7 @@ model {
 generated quantities {
 vector[n] log_lik;
 for (i in 1:n) {
-log_lik[i] = normal_lpdf(y[i]| popint + popslope*x[i] + w[i,1] * u2[group1[i]] + w[i,2] * u2[group2[i]] + w[i,3] * u2[group3[i]] + w[i,4] * u2[group4[i]], sigma_y); 
+log_lik[i] = normal_lpdf(y[i]| popint + popslope*x[i] + w[i,1] * u2[group1[i],1] + w[i,2] * u2[group2[i],2] + w[i,3] * u2[group3[i],3] + w[i,4] * u2[group4[i],4], sigma_y); 
 // loop to run model prior to running Loo. 
 }
 }
